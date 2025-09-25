@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validador de DNI</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+    <script>
+        // Array de letras para el cálculo del DNI
+        var letras = ['T', 'R', 'W', 'A', 'G', 'M', 'Y', 'F', 'P', 'D', 'X', 'B', 'N', 'J', 'Z', 'S', 'Q', 'V', 'H', 'L', 'C', 'K', 'E', 'T'];
+        
+        // Solicitar al usuario el número y la letra del DNI
+        var numeroDNI = parseInt(prompt("Introduce el número de DNI (sin letra):"));
+        var letraUsuario = prompt("Introduce la letra del DNI:").toUpperCase();
+        
+        // Validar que el número sea un número válido
+        if (isNaN(numeroDNI)) {
+            alert("El número de DNI introducido no es válido.");
+        }
+        // Comprobar si el número es menor que 0 o mayor que 99999999 (en una sola instrucción)
+        else if (numeroDNI < 0 || numeroDNI > 99999999) {
+            alert("El número proporcionado no es válido. Debe estar entre 0 y 99999999.");
+        } else {
+            // Calcular la letra correspondiente al número de DNI
+            var resto = numeroDNI % 23;
+            var letraCalculada = letras[resto];
+            
+            // Comparar la letra calculada con la introducida por el usuario
+            if (letraCalculada !== letraUsuario) {
+                alert("La letra que ha indicado no es correcta. La letra correcta es: " + letraCalculada);
+            } else {
+                alert("El número y la letra de DNI son correctos.");
+            }
+        }
+    </script>
+</body>
+</html>
