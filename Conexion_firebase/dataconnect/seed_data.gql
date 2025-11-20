@@ -1,0 +1,22 @@
+mutation CreateSeedUsers @auth(level: PUBLIC, insecureReason: "This mutation is safe to expose to the public") @transaction {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      createdAt: "2024-04-24T12:00:00Z",
+      dateOfBirth: "1990-01-01",
+      email: "demouser1@example.com",
+      firstName: "Demo",
+      lastName: "User1",
+      passwordHash: "hashed_password1"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      createdAt: "2024-04-24T13:00:00Z",
+      dateOfBirth: "1985-05-10",
+      email: "demouser2@example.com",
+      firstName: "Demo",
+      lastName: "User2",
+      passwordHash: "hashed_password2"
+    }
+  ])
+}

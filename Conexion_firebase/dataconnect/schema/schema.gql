@@ -1,0 +1,10 @@
+type User @table {
+  email: String!
+  passwordHash: String!
+  firstName: String!
+  lastName: String!
+  createdAt: Timestamp!
+  phoneNumber: String
+  dateOfBirth: Date
+  lastLoginAt: Timestamp
+}

@@ -1,0 +1,44 @@
+mutation CreateUser(
+  $firstName: String!
+  $lastName: String!
+  $email: String!
+  $passwordHash: String!
+  $createdAt: Timestamp!
+) @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
+  user_insert(
+    data: {
+      firstName: $firstName
+      lastName: $lastName
+      email: $email
+      passwordHash: $passwordHash
+      createdAt: $createdAt
+    }
+  ) {
+    id
+  }
+}
+
+query GetUserByEmail($email: String!) @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  users(where: { email: { eq: $email } }) {
+    id
+    firstName
+    lastName
+    email
+    phoneNumber
+    dateOfBirth
+    lastLoginAt
+    createdAt
+  }
+}
+
+mutation UpdateLastLogin($id: UUID!) @auth(level: USER) {
+  user_update(key: { id: $id }, data: { lastLoginAt_expr: "request.time" }) {
+    id
+  }
+}
+
+mutation DeleteUser($id: UUID!) @auth(expr: "auth.token.admin == true") {
+  user_delete(id: $id) {
+    id
+  }
+}
