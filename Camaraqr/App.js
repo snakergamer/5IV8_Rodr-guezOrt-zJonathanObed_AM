@@ -1,5 +1,4 @@
-// App.js - Versión completa en un solo archivo
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,130 +9,83 @@ import {
   SafeAreaView,
   Modal,
   ScrollView,
-  Platform,
-  PermissionsAndroid,
   StatusBar,
+  Vibration,
 } from 'react-native';
-import { RNCamera } from 'react-native-camera';
-import QRCodeScanner from 'react-native-qrcode-scanner';
+import { CameraView, Camera } from 'expo-camera';
 
 const App = () => {
-  // Estados
   const [scannedData, setScannedData] = useState('');
-  const [flashMode, setFlashMode] = useState(RNCamera.Constants.FlashMode.off);
-  const [isScannerActive, setIsScannerActive] = useState(true);
+  const [hasPermission, setHasPermission] = useState(null);
+  const [flashMode, setFlashMode] = useState('off');
   const [showResultModal, setShowResultModal] = useState(false);
   const [scanHistory, setScanHistory] = useState([]);
-  const [hasCameraPermission, setHasCameraPermission] = useState(false);
-  
-  // Referencias
-  const scannerRef = useRef(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const cameraRef = useRef(null);
 
-  // Solicitar permisos de cámara
   useEffect(() => {
-    requestCameraPermission();
+    (async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setHasPermission(status === 'granted');
+    })();
   }, []);
 
-  const requestCameraPermission = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          {
-            title: 'Permiso de Cámara',
-            message: 'Esta app necesita acceso a la cámara para escanear QR',
-            buttonNeutral: 'Preguntar después',
-            buttonNegative: 'Cancelar',
-            buttonPositive: 'OK',
-          }
-        );
-        setHasCameraPermission(granted === PermissionsAndroid.RESULTS.GRANTED);
-      } catch (err) {
-        console.warn(err);
-      }
-    } else {
-      // iOS maneja los permisos automáticamente con react-native-camera
-      setHasCameraPermission(true);
-    }
-  };
-
-  // Manejar escaneo exitoso
-  const handleQRScan = (e) => {
-    const data = e.data;
+  const handleBarCodeScanned = ({ type, data }) => {
+    Vibration.vibrate(100);
     setScannedData(data);
     setShowResultModal(true);
-    setIsScannerActive(false);
     
-    // Agregar al historial
     const newScan = {
       id: Date.now().toString(),
       data: data,
-      timestamp: new Date().toLocaleString(),
+      timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      date: new Date().toLocaleDateString(),
       type: detectQRType(data),
     };
     
-    setScanHistory(prev => [newScan, ...prev.slice(0, 9)]); // Mantener solo últimos 10
+    setScanHistory(prev => [newScan, ...prev.slice(0, 9)]);
   };
 
-  // Detectar tipo de QR
   const detectQRType = (data) => {
-    if (data.startsWith('http')) return 'URL';
-    if (data.startsWith('tel:')) return 'Teléfono';
-    if (data.startsWith('mailto:')) return 'Email';
-    if (data.startsWith('WIFI:')) return 'WiFi';
-    if (data.startsWith('BEGIN:VCARD')) return 'Contacto';
-    if (data.match(/^\d+$/)) return 'Número';
-    return 'Texto';
+    if (data.startsWith('http://') || data.startsWith('https://')) return '🌐 URL';
+    if (data.startsWith('tel:')) return '📞 Teléfono';
+    if (data.startsWith('mailto:')) return '📧 Email';
+    if (data.startsWith('WIFI:')) return '📶 WiFi';
+    if (data.startsWith('BEGIN:VCARD')) return '👤 Contacto';
+    if (data.match(/^\d+$/)) return '#️⃣ Número';
+    if (data.length > 100) return '📄 Texto Largo';
+    return '📝 Texto';
   };
 
-  // Acciones del resultado
   const handleAction = (action) => {
     switch (action) {
       case 'open':
-        if (scannedData.startsWith('http')) {
+        if (scannedData.startsWith('http') || scannedData.startsWith('tel:') || scannedData.startsWith('mailto:')) {
           Linking.openURL(scannedData).catch(err =>
-            Alert.alert('Error', 'No se pudo abrir el enlace')
+            Alert.alert('Error', 'No se pudo abrir')
           );
         }
         break;
       case 'copy':
-        Alert.alert('Copiado', 'Texto copiado al portapapeles');
-        // Aquí podrías implementar react-native-clipboard
-        break;
-      case 'share':
-        Alert.alert('Compartir', 'Funcionalidad de compartir');
-        // Implementar react-native-share
+        Alert.alert('Copiado', 'Texto copiado');
         break;
     }
     setShowResultModal(false);
     resetScanner();
   };
 
-  // Resetear escáner
   const resetScanner = () => {
     setScannedData('');
-    setIsScannerActive(true);
-    setTimeout(() => {
-      if (scannerRef.current) {
-        scannerRef.current.reactivate();
-      }
-    }, 500);
   };
 
-  // Alternar flash
   const toggleFlash = () => {
-    setFlashMode(
-      flashMode === RNCamera.Constants.FlashMode.off
-        ? RNCamera.Constants.FlashMode.torch
-        : RNCamera.Constants.FlashMode.off
-    );
+    setFlashMode(flashMode === 'off' ? 'torch' : 'off');
   };
 
-  // Limpiar historial
   const clearHistory = () => {
     Alert.alert(
       'Limpiar Historial',
-      '¿Estás seguro de que quieres borrar todo el historial?',
+      '¿Estás seguro?',
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Limpiar', onPress: () => setScanHistory([]) },
@@ -141,196 +93,8 @@ const App = () => {
     );
   };
 
-  // Renderizar pantalla principal del escáner
-  const renderScanner = () => {
-    if (!hasCameraPermission) {
-      return (
-        <View style={styles.permissionContainer}>
-          <Text style={styles.permissionText}>
-            Se necesita permiso para acceder a la cámara
-          </Text>
-          <TouchableOpacity
-            style={styles.permissionButton}
-            onPress={requestCameraPermission}
-          >
-            <Text style={styles.permissionButtonText}>Conceder Permiso</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    return (
-      <QRCodeScanner
-        ref={scannerRef}
-        onRead={handleQRScan}
-        flashMode={flashMode}
-        reactivate={isScannerActive}
-        reactivateTimeout={3000}
-        showMarker={true}
-        cameraStyle={styles.camera}
-        topContent={
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Escáner QR</Text>
-            <TouchableOpacity onPress={() => setShowHistoryModal(true)}>
-              <Text style={styles.historyButton}>Historial ({scanHistory.length})</Text>
-            </TouchableOpacity>
-          </View>
-        }
-        bottomContent={
-          <View style={styles.controls}>
-            <TouchableOpacity style={styles.flashButton} onPress={toggleFlash}>
-              <Text style={styles.flashButtonText}>
-                {flashMode === RNCamera.Constants.FlashMode.off ? '🔦' : '💡'}
-              </Text>
-              <Text style={styles.flashButtonLabel}>
-                {flashMode === RNCamera.Constants.FlashMode.off ? 'Flash' : 'Apagar'}
-              </Text>
-            </TouchableOpacity>
-            
-            <View style={styles.scanArea}>
-              <Text style={styles.scanInstruction}>
-                Coloca el código QR dentro del marco
-              </Text>
-            </View>
-          </View>
-        }
-      />
-    );
-  };
-
-  // Modal de resultado
-  const renderResultModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={showResultModal}
-      onRequestClose={() => {
-        setShowResultModal(false);
-        resetScanner();
-      }}
-    >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Código Escaneado</Text>
-          
-          <View style={styles.qrTypeBadge}>
-            <Text style={styles.qrTypeText}>
-              {detectQRType(scannedData)}
-            </Text>
-          </View>
-          
-          <ScrollView style={styles.dataContainer}>
-            <Text style={styles.dataText} selectable={true}>
-              {scannedData}
-            </Text>
-          </ScrollView>
-          
-          <View style={styles.actionButtons}>
-            {scannedData.startsWith('http') && (
-              <TouchableOpacity
-                style={[styles.actionButton, styles.openButton]}
-                onPress={() => handleAction('open')}
-              >
-                <Text style={styles.actionButtonText}>🌐 Abrir</Text>
-              </TouchableOpacity>
-            )}
-            
-            <TouchableOpacity
-              style={[styles.actionButton, styles.copyButton]}
-              onPress={() => handleAction('copy')}
-            >
-              <Text style={styles.actionButtonText}>📋 Copiar</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.actionButton, styles.shareButton]}
-              onPress={() => handleAction('share')}
-            >
-              <Text style={styles.actionButtonText}>↗️ Compartir</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => {
-              setShowResultModal(false);
-              resetScanner();
-            }}
-          >
-            <Text style={styles.closeButtonText}>Escanear otro</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  // Modal de historial
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  
-  const renderHistoryModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={showHistoryModal}
-      onRequestClose={() => setShowHistoryModal(false)}
-    >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Historial de Escaneos</Text>
-            {scanHistory.length > 0 && (
-              <TouchableOpacity onPress={clearHistory}>
-                <Text style={styles.clearHistoryText}>Limpiar</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          
-          {scanHistory.length === 0 ? (
-            <View style={styles.emptyHistory}>
-              <Text style={styles.emptyHistoryText}>
-                No hay escaneos recientes
-              </Text>
-            </View>
-          ) : (
-            <ScrollView style={styles.historyList}>
-              {scanHistory.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.historyItem}
-                  onPress={() => {
-                    setScannedData(item.data);
-                    setShowHistoryModal(false);
-                    setShowResultModal(true);
-                  }}
-                >
-                  <View style={styles.historyItemHeader}>
-                    <View style={[styles.typeBadge, 
-                      { backgroundColor: getTypeColor(item.type) }]}>
-                      <Text style={styles.typeText}>{item.type}</Text>
-                    </View>
-                    <Text style={styles.historyTime}>{item.timestamp}</Text>
-                  </View>
-                  <Text style={styles.historyData} numberOfLines={2}>
-                    {item.data}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-          
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setShowHistoryModal(false)}
-          >
-            <Text style={styles.closeButtonText}>Volver al escáner</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  // Color por tipo de QR
   const getTypeColor = (type) => {
+    const typeKey = type.replace(/[^a-zA-Z]/g, '');
     const colors = {
       'URL': '#4CAF50',
       'Teléfono': '#2196F3',
@@ -339,62 +103,251 @@ const App = () => {
       'Contacto': '#F44336',
       'Número': '#607D8B',
       'Texto': '#795548',
+      'TextoLargo': '#3F51B5',
     };
-    return colors[type] || '#757575';
+    return colors[typeKey] || '#757575';
   };
+
+  if (hasPermission === null) {
+    return (
+      <View style={styles.pantalla}>
+        <Text>Solicitando permiso para la cámara...</Text>
+      </View>
+    );
+  }
+
+  if (hasPermission === false) {
+    return (
+      <View style={styles.pantalla}>
+        <Text>No hay acceso a la cámara</Text>
+        <TouchableOpacity style={styles.boton} onPress={() => Camera.requestCameraPermissionsAsync()}>
+          <Text style={styles.botonTexto}>Intentar de nuevo</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
       
-      {renderScanner()}
-      {renderResultModal()}
-      {renderHistoryModal()}
+      <CameraView
+        ref={cameraRef}
+        style={styles.camera}
+        facing="back"
+        barcodeScannerSettings={{
+          barcodeTypes: ['qr'],
+        }}
+        onBarcodeScanned={showResultModal ? undefined : handleBarCodeScanned}
+        flash={flashMode}
+      />
+      
+      <View style={styles.overlay}>
+        <View style={styles.marcoQR} />
+        <Text style={styles.instructionText}>Apunta al código QR</Text>
+      </View>
+
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>📱 QR Scanner</Text>
+        <TouchableOpacity 
+          style={styles.historyButton}
+          onPress={() => setShowHistoryModal(true)}
+        >
+          <Text style={styles.historyButtonText}>
+            Historial ({scanHistory.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.bottomContainer}>
+        <TouchableOpacity style={styles.flashButton} onPress={toggleFlash}>
+          <View style={styles.flashIcon}>
+            <Text style={styles.flashIconText}>
+              {flashMode === 'off' ? '🔦' : '💡'}
+            </Text>
+          </View>
+          <Text style={styles.flashText}>
+            {flashMode === 'off' ? 'Flash' : 'Apagar'}
+          </Text>
+        </TouchableOpacity>
+        
+        <Text style={styles.scanText}>Escanea un código QR</Text>
+      </View>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showResultModal}
+        onRequestClose={() => {
+          setShowResultModal(false);
+          resetScanner();
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>QR Escaneado</Text>
+            
+            <View style={[styles.typeBadge, { backgroundColor: getTypeColor(detectQRType(scannedData)) }]}>
+              <Text style={styles.typeText}>{detectQRType(scannedData)}</Text>
+            </View>
+            
+            <ScrollView style={styles.dataContainer}>
+              <Text style={styles.dataText} selectable={true}>
+                {scannedData}
+              </Text>
+            </ScrollView>
+            
+            <View style={styles.actionButtons}>
+              {(scannedData.startsWith('http') || scannedData.startsWith('tel:') || scannedData.startsWith('mailto:')) && (
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.openButton]}
+                  onPress={() => handleAction('open')}
+                >
+                  <Text style={styles.actionButtonText}>Abrir</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity
+                style={[styles.actionButton, styles.copyButton]}
+                onPress={() => handleAction('copy')}
+              >
+                <Text style={styles.actionButtonText}>Copiar</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => {
+                setShowResultModal(false);
+                resetScanner();
+              }}
+            >
+              <Text style={styles.closeButtonText}>Escanear otro</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showHistoryModal}
+        onRequestClose={() => setShowHistoryModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Historial</Text>
+              {scanHistory.length > 0 && (
+                <TouchableOpacity onPress={clearHistory}>
+                  <Text style={styles.clearHistoryText}>Limpiar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            {scanHistory.length === 0 ? (
+              <View style={styles.emptyHistory}>
+                <Text style={styles.emptyHistoryText}>No hay escaneos</Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.historyList}>
+                {scanHistory.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.historyItem}
+                    onPress={() => {
+                      setScannedData(item.data);
+                      setShowHistoryModal(false);
+                      setShowResultModal(true);
+                    }}
+                  >
+                    <View style={styles.historyItemHeader}>
+                      <View style={[styles.typeBadgeSmall, { backgroundColor: getTypeColor(item.type) }]}>
+                        <Text style={styles.typeTextSmall}>{item.type}</Text>
+                      </View>
+                      <Text style={styles.historyTime}>{item.timestamp}</Text>
+                    </View>
+                    <Text style={styles.historyData} numberOfLines={1}>
+                      {item.data}
+                    </Text>
+                    <Text style={styles.historyDate}>{item.date}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+            
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowHistoryModal(false)}
+            >
+              <Text style={styles.closeButtonText}>Volver</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
-// Estilos
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
   },
-  
-  // Permisos
-  permissionContainer: {
+  pantalla: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#000',
+    backgroundColor: '#f0f0f0',
   },
-  permissionText: {
-    color: 'white',
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  permissionButton: {
+  boton: {
     backgroundColor: '#2196F3',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
+    padding: 15,
     borderRadius: 10,
+    marginTop: 20,
   },
-  permissionButtonText: {
+  botonTexto: {
+    color: 'white',
+    fontSize: 16,
+  },
+  camera: {
+    flex: 1,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  marcoQR: {
+    width: 250,
+    height: 250,
+    borderWidth: 3,
+    borderColor: '#00FF00',
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+  },
+  instructionText: {
+    position: 'absolute',
+    top: 40,
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
-  
-  // Header
   header: {
+    position: 'absolute',
+    top: 10,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 10,
-    width: '100%',
   },
   headerTitle: {
     color: 'white',
@@ -402,57 +355,57 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   historyButton: {
+    backgroundColor: 'rgba(76, 175, 80, 0.3)',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  historyButtonText: {
     color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  
-  // Cámara
-  camera: {
-    height: '100%',
-  },
-  
-  // Controles
-  controls: {
+  bottomContainer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 30,
-    backgroundColor: 'rgba(0,0,0,0.7)',
   },
   flashButton: {
     alignItems: 'center',
-    padding: 10,
   },
-  flashButtonText: {
-    fontSize: 28,
+  flashIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 5,
   },
-  flashButtonLabel: {
+  flashIconText: {
+    fontSize: 24,
+  },
+  flashText: {
     color: 'white',
     fontSize: 12,
   },
-  scanArea: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  scanInstruction: {
+  scanText: {
     color: 'white',
-    fontSize: 14,
-    textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
+    fontSize: 16,
+    fontWeight: '600',
   },
-  
-  // Modales
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
     padding: 20,
   },
   modalContent: {
@@ -479,17 +432,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  
-  // Resultado QR
-  qrTypeBadge: {
+  typeBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#4CAF50',
     paddingHorizontal: 15,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: 15,
     marginBottom: 15,
   },
-  qrTypeText: {
+  typeText: {
     color: 'white',
     fontWeight: 'bold',
     fontSize: 12,
@@ -497,16 +447,14 @@ const styles = StyleSheet.create({
   dataContainer: {
     maxHeight: 150,
     marginBottom: 20,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    padding: 10,
   },
   dataText: {
     fontSize: 16,
     color: '#333',
-    padding: 10,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 10,
   },
-  
-  // Botones de acción
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -525,16 +473,11 @@ const styles = StyleSheet.create({
   copyButton: {
     backgroundColor: '#4CAF50',
   },
-  shareButton: {
-    backgroundColor: '#FF9800',
-  },
   actionButtonText: {
     color: 'white',
     fontWeight: 'bold',
     fontSize: 14,
   },
-  
-  // Botón cerrar
   closeButton: {
     backgroundColor: '#757575',
     padding: 15,
@@ -546,8 +489,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  
-  // Historial
   emptyHistory: {
     padding: 40,
     alignItems: 'center',
@@ -572,12 +513,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  typeBadge: {
+  typeBadgeSmall: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  typeText: {
+  typeTextSmall: {
     color: 'white',
     fontSize: 10,
     fontWeight: 'bold',
@@ -589,6 +530,11 @@ const styles = StyleSheet.create({
   historyData: {
     fontSize: 14,
     color: '#333',
+    marginBottom: 5,
+  },
+  historyDate: {
+    fontSize: 12,
+    color: '#999',
   },
 });
 
