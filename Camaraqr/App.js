@@ -11,10 +11,18 @@ import {
   ScrollView,
   StatusBar,
   Vibration,
+  TextInput,
 } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
 
 const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [showLoginModal, setShowLoginModal] = useState(true);
+  const [loginError, setLoginError] = useState('');
+
   const [scannedData, setScannedData] = useState('');
   const [hasPermission, setHasPermission] = useState(null);
   const [flashMode, setFlashMode] = useState('off');
@@ -29,6 +37,45 @@ const App = () => {
       setHasPermission(status === 'granted');
     })();
   }, []);
+
+  const handleLogin = () => {
+    if (loginAttempts >= 3) {
+      setLoginError('Demasiados intentos fallidos');
+      return;
+    }
+
+    if (username === 'admin' && password === '1234') {
+      setIsAuthenticated(true);
+      setShowLoginModal(false);
+      setLoginError('');
+      setLoginAttempts(0);
+    } else {
+      setLoginAttempts(prev => prev + 1);
+      setLoginError(`Credenciales incorrectas. Intentos: ${loginAttempts + 1}/3`);
+      setPassword('');
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Cerrar Sesión',
+      '¿Estás seguro de que quieres salir?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Salir', 
+          onPress: () => {
+            setIsAuthenticated(false);
+            setShowLoginModal(true);
+            setUsername('');
+            setPassword('');
+            setLoginAttempts(0);
+            setScanHistory([]);
+          }
+        },
+      ]
+    );
+  };
 
   const handleBarCodeScanned = ({ type, data }) => {
     Vibration.vibrate(100);
@@ -108,6 +155,66 @@ const App = () => {
     return colors[typeKey] || '#757575';
   };
 
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.loginContainer}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+        
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showLoginModal}
+          onRequestClose={() => {}}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.loginModalContent}>
+              <Text style={styles.loginTitle}>🔐 Iniciar Sesión</Text>
+              <Text style={styles.loginSubtitle}>QR Scanner Pro</Text>
+              
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Usuario"
+                  placeholderTextColor="#999"
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                
+                <TextInput
+                  style={styles.input}
+                  placeholder="Contraseña"
+                  placeholderTextColor="#999"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  autoCapitalize="none"
+                />
+                
+                {loginError ? (
+                  <Text style={styles.errorText}>{loginError}</Text>
+                ) : null}
+                
+                <TouchableOpacity
+                  style={styles.loginButton}
+                  onPress={handleLogin}
+                >
+                  <Text style={styles.loginButtonText}>Ingresar</Text>
+                </TouchableOpacity>
+                
+                <View style={styles.credentialsInfo}>
+                  <Text style={styles.credentialsText}>Usuario: admin</Text>
+                  <Text style={styles.credentialsText}>Contraseña: 1234</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
+    );
+  }
+
   if (hasPermission === null) {
     return (
       <View style={styles.pantalla}>
@@ -148,7 +255,13 @@ const App = () => {
       </View>
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>📱 QR Scanner</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>📱 QR Scanner</Text>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+            <Text style={styles.logoutText}>👤</Text>
+          </TouchableOpacity>
+        </View>
+        
         <TouchableOpacity 
           style={styles.historyButton}
           onPress={() => setShowHistoryModal(true)}
@@ -159,20 +272,7 @@ const App = () => {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.bottomContainer}>
-        <TouchableOpacity style={styles.flashButton} onPress={toggleFlash}>
-          <View style={styles.flashIcon}>
-            <Text style={styles.flashIconText}>
-              {flashMode === 'off' ? '🔦' : '💡'}
-            </Text>
-          </View>
-          <Text style={styles.flashText}>
-            {flashMode === 'off' ? 'Flash' : 'Apagar'}
-          </Text>
-        </TouchableOpacity>
-        
-        <Text style={styles.scanText}>Escanea un código QR</Text>
-      </View>
+      
 
       <Modal
         animationType="slide"
@@ -290,6 +390,80 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
+  loginContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    padding: 20,
+  },
+  loginModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 30,
+    width: '90%',
+    maxWidth: 400,
+    alignItems: 'center',
+  },
+  loginTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+  },
+  loginSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 30,
+  },
+  inputContainer: {
+    width: '100%',
+  },
+  input: {
+    backgroundColor: '#f8f8f8',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    padding: 15,
+    fontSize: 16,
+    marginBottom: 15,
+    color: '#333',
+  },
+  errorText: {
+    color: '#F44336',
+    fontSize: 14,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  loginButton: {
+    backgroundColor: '#2196F3',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loginButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  credentialsInfo: {
+    backgroundColor: '#f0f8ff',
+    padding: 15,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+    borderStyle: 'dashed',
+  },
+  credentialsText: {
+    color: '#2196F3',
+    fontSize: 14,
+    marginBottom: 5,
+  },
   container: {
     flex: 1,
     backgroundColor: '#000',
@@ -349,10 +523,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   headerTitle: {
     color: 'white',
     fontSize: 24,
     fontWeight: 'bold',
+    marginRight: 10,
+  },
+  logoutButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutText: {
+    fontSize: 18,
+    color: 'white',
   },
   historyButton: {
     backgroundColor: 'rgba(76, 175, 80, 0.3)',
@@ -400,13 +591,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    padding: 20,
   },
   modalContent: {
     backgroundColor: 'white',
